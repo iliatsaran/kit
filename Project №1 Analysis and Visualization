@@ -1,1 +1,356 @@
-
+--Total Sales (Revenue) by Country
+SELECT 
+    country, 
+    SUM(revenue) AS total_revenue
+FROM 
+    public.sales_data
+GROUP BY 
+    country
+ORDER BY 
+    total_revenue DESC;
+--Total Profit by Product Category
+   SELECT 
+    product_category, 
+    SUM(profit) AS total_profit
+FROM 
+    public.sales_data
+GROUP BY 
+    product_category
+ORDER BY 
+    total_profit DESC;
+--Average Order Value
+SELECT 
+    AVG(revenue) AS average_order_value
+FROM 
+    public.sales_data;
+--Sales Profitability by Product Category
+SELECT 
+    Product_Category,
+    SUM(Profit) / SUM(Revenue) AS Profit_Margin
+FROM 
+    public.sales_data
+GROUP BY 
+    Product_Category
+ORDER BY 
+    Profit_Margin DESC;
+--Total Units Sold by Product
+SELECT 
+    Product, 
+    SUM(Order_Quantity) AS Total_Units_Sold
+FROM 
+    public.sales_data
+GROUP BY 
+    Product
+ORDER BY 
+    Total_Units_Sold DESC;
+--Average Unit Price by Product Category
+WITH category_avg AS (
+    SELECT 
+        product_category, 
+        AVG(unit_price) AS average_unit_price
+    FROM 
+        public.sales_data
+    GROUP BY 
+        product_category
+)
+SELECT 
+    product_category,
+    average_unit_price,
+    AVG(average_unit_price) OVER () AS overall_average_price,
+    (average_unit_price - AVG(average_unit_price) OVER ())::DECIMAL(10,2) AS deviation_from_overall
+FROM 
+    category_avg
+ORDER BY 
+    deviation_from_overall DESC;
+--Average Customer Age by Country 
+SELECT 
+    country, 
+    AVG(customer_age) AS average_age
+FROM 
+    public.sales_data
+GROUP BY 
+    country
+ORDER BY 
+    average_age DESC;
+--Seasonality Analysis: Total Revenue by Month and Year
+SELECT 
+    year, 
+    month, 
+    SUM(revenue) AS total_revenue
+FROM 
+    public.sales_data
+GROUP BY 
+    year, month
+ORDER BY 
+    year, 
+    TO_CHAR(TO_DATE(month, 'Month'), 'MM')::INT;
+--Geographical Analysis: Sales by Country and State
+SELECT 
+    country, 
+    state, 
+    SUM(revenue) AS total_revenue
+FROM 
+    public.sales_data
+GROUP BY 
+    country, state
+ORDER BY 
+    country, total_revenue DESC;
+--Top 5 Products by Sales Volume
+SELECT 
+    product, 
+    SUM(revenue) AS total_revenue
+FROM 
+    public.sales_data
+GROUP BY 
+    product
+ORDER BY 
+    total_revenue DESC
+LIMIT 5;
+--Top 3 Popular Products in Each Age Group
+WITH ranked_products AS (
+    SELECT 
+        age_group,
+        product,
+        SUM(order_quantity) AS total_units_sold,
+        ROW_NUMBER() OVER (
+            PARTITION BY age_group 
+            ORDER BY SUM(order_quantity) DESC
+        ) AS rank
+    FROM 
+        public.sales_data
+    GROUP BY 
+        age_group, product
+)
+SELECT 
+    age_group,
+    product,
+    total_units_sold
+FROM 
+    ranked_products
+WHERE 
+    rank <= 3
+ORDER BY 
+    age_group, rank;
+--Sales by Age Group
+SELECT 
+    age_group, 
+    SUM(revenue) AS total_revenue
+FROM 
+    public.sales_data
+GROUP BY 
+    age_group
+ORDER BY 
+    total_revenue DESC;
+--Sales Revenue by Gender
+SELECT 
+    customer_gender, 
+    SUM(revenue) AS total_revenue
+FROM 
+    public.sales_data
+GROUP BY 
+    customer_gender
+ORDER BY 
+    total_revenue DESC;
+--Profitability by Region (Country)
+SELECT 
+    country, 
+    SUM(profit) / NULLIF(SUM(revenue), 0) AS profit_margin
+FROM 
+    public.sales_data
+GROUP BY 
+    country
+ORDER BY 
+    profit_margin DESC;
+--ABC Analysis: Product Classification by Sales Volume
+   WITH total_revenue AS (
+    SELECT 
+        SUM(revenue) AS grand_total_revenue
+    FROM 
+        public.sales_data
+), product_revenue AS (
+    SELECT 
+        product, 
+        SUM(revenue) AS total_revenue,
+        SUM(revenue) / (SELECT grand_total_revenue FROM total_revenue) AS revenue_percentage
+    FROM 
+        public.sales_data
+    GROUP BY 
+        product
+), ranked_products AS (
+    SELECT 
+        product, 
+        total_revenue,
+        revenue_percentage,
+        SUM(revenue_percentage) OVER (ORDER BY total_revenue DESC) AS cumulative_percentage
+    FROM 
+        product_revenue
+)
+SELECT 
+    product, 
+    total_revenue,
+    cumulative_percentage,
+    CASE 
+        WHEN cumulative_percentage <= 0.8 THEN 'A'
+        WHEN cumulative_percentage <= 0.95 THEN 'B'
+        ELSE 'C'
+    END AS abc_class
+FROM 
+    ranked_products
+ORDER BY 
+    total_revenue DESC;
+--Average Revenue per Customer by Country
+   SELECT 
+    country, 
+    AVG(revenue) AS average_revenue_per_customer
+FROM 
+    public.sales_data
+GROUP BY 
+    country
+ORDER BY 
+    average_revenue_per_customer DESC;
+--XYZ Analysis
+WITH product_variability AS (
+    SELECT 
+        product,
+        AVG(order_quantity) AS avg_demand,
+        STDDEV(order_quantity) AS demand_variability
+    FROM 
+        public.sales_data
+    GROUP BY 
+        product
+)
+SELECT 
+    product,
+    avg_demand,
+    demand_variability,
+    CASE 
+        WHEN demand_variability / NULLIF(avg_demand, 0) <= 0.1 THEN 'X'  -- Stable demand
+        WHEN demand_variability / NULLIF(avg_demand, 0) <= 0.25 THEN 'Y'  -- Moderate variation
+        ELSE 'Z'  -- Highly variable demand
+    END AS xyz_category
+FROM 
+    product_variability;
+--Pareto Analysis (80/20 Rule)
+WITH total_revenue AS (
+    SELECT 
+        SUM(revenue) AS grand_total_revenue
+    FROM 
+        public.sales_data
+), product_revenue AS (
+    SELECT 
+        product, 
+        SUM(revenue) AS total_revenue,
+        SUM(revenue) / (SELECT grand_total_revenue FROM total_revenue) AS revenue_percentage
+    FROM 
+        public.sales_data
+    GROUP BY 
+        product
+)
+SELECT 
+    product, 
+    total_revenue,
+    SUM(revenue_percentage) OVER (ORDER BY total_revenue DESC) AS cumulative_percentage
+FROM 
+    product_revenue
+ORDER BY 
+    total_revenue DESC;
+--High-Medium-Low Sales Classification
+WITH product_sales AS (
+    SELECT 
+        product,
+        SUM(revenue) AS total_revenue,
+        NTILE(5) OVER (ORDER BY SUM(revenue) DESC) AS sales_tier
+    FROM 
+        public.sales_data
+    GROUP BY 
+        product
+)
+SELECT 
+    product,
+    total_revenue,
+    CASE 
+        WHEN sales_tier = 1 THEN 'High'
+        WHEN sales_tier <= 3 THEN 'Medium'
+        ELSE 'Low'
+    END AS sales_category
+FROM 
+    product_sales;
+--Gini Coefficient (Concentration Index)
+WITH product_revenue AS (
+    SELECT 
+        product, 
+        SUM(revenue) AS total_revenue,
+        SUM(revenue) / (SELECT SUM(revenue) FROM public.sales_data) AS revenue_share
+    FROM 
+        public.sales_data
+    GROUP BY 
+        product
+), cumulative_share AS (
+    SELECT 
+        product,
+        revenue_share,
+        SUM(revenue_share) OVER (ORDER BY revenue_share DESC) AS cumulative_share
+    FROM 
+        product_revenue
+)
+SELECT 
+    product,
+    revenue_share,
+    cumulative_share
+FROM 
+    cumulative_share
+ORDER BY 
+    revenue_share DESC;
+--Group Lifetime Value (This is not CLV because there is no customer_id )
+   SELECT
+    age_group,
+    customer_gender,
+    SUM(revenue) AS total_revenue,
+    SUM(cost) AS total_cost,
+    SUM(profit) AS total_profit,
+    (SUM(revenue) / COUNT(DISTINCT year)) AS average_annual_revenue
+FROM
+    sales_data 
+GROUP BY
+    age_group, customer_gender;
+--Sales growth rate by age groups
+ WITH monthly_activity AS (
+    SELECT
+        age_group,
+        year,
+        month,
+        COUNT(*) AS purchase_count
+    FROM
+        sales_data
+    GROUP BY
+        age_group, year, month
+),
+growth_rate AS (
+    SELECT
+        ma.age_group,
+        ma.year,
+        ma.month,
+        ma.purchase_count,
+        LAG(ma.purchase_count) OVER (
+            PARTITION BY ma.age_group
+            ORDER BY ma.year, ma.month
+        ) AS previous_month_count
+    FROM
+        monthly_activity ma
+)
+SELECT
+    age_group,
+    year,
+    month,
+    purchase_count,
+    previous_month_count,
+    CASE
+        WHEN previous_month_count IS NOT NULL AND previous_month_count > 0 THEN
+            ((purchase_count - previous_month_count) / previous_month_count::DECIMAL) * 100
+        ELSE
+            NULL
+    END AS sales_growth_rate
+FROM
+    growth_rate
+ORDER BY
+    age_group, year, month;
